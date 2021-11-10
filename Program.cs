@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,29 +11,51 @@ namespace PasswordFlagger
     class Program
     {
         private static readonly object _lockObj = new object();
-        public static int TasksRunning { get; set; } = 0;
-        public static int TasksDone { get; set; } = 0;
-        public static int FileCount { get; set; } = 0;
+        public static int FilesProcessed = 0;
+        public static int FileCount = 0;
         public static string[]  NoNoWords { get; set; }
+        private static CancellationTokenSource cancleStatusDisplay = new CancellationTokenSource();
         static async Task Main(string[] args)
         {
             string rootFilePath = GetRootFilePathFormUser();
             NoNoWords = GetNoNoWordsFromUser();
-            Task statusDisplay = Task.Run(() => ShowDisplay());
+            Task statusDisplay = Task.Run(() => ShowDisplay(cancleStatusDisplay.Token));
             string[] files = await GetAllFilesInDirectoryAsync(rootFilePath);
-            statusDisplay.Dispose();
-            SaveFilesWIthPassword(files);
+            string[] ProcessedFiles = AnalyseFilesForNoNoWords(files);
+            StopStatusDisplay(statusDisplay);
+            SaveFilesWIthPassword(ProcessedFiles);
         }
 
-        private static Action ShowDisplay()
+        private static string[] AnalyseFilesForNoNoWords(string[] files)
+        {
+            ConcurrentBag<Task> tasks = new ConcurrentBag<Task>();
+            List<string> flaggedFiles = new List<string>();
+            foreach (string file in files)
+                tasks.Add(Task.Run(() =>
+                {
+                    if (FileContainsPassword(file))
+                       flaggedFiles.Add(file);
+                    Interlocked.Increment(ref FilesProcessed);
+                }));
+            Task.WaitAll(tasks.ToArray());
+            flaggedFiles.Sort();
+            return flaggedFiles.ToArray();
+        }
+
+        private static void StopStatusDisplay(Task statusDisplay)
+        {
+            cancleStatusDisplay.Cancel();
+            statusDisplay.Wait();
+        }
+
+        private static void ShowDisplay(CancellationToken cancellation)
         {
             Console.Clear();
-            while (true)
+            while (!cancellation.IsCancellationRequested)
             {
                 Console.SetCursorPosition(0, 0);
-                Console.WriteLine($"Files = {FileCount}");
-
-                Thread.Sleep(200);
+                WriteStatus();
+                Thread.Sleep(100);
             }
         }
 
@@ -65,18 +88,8 @@ namespace PasswordFlagger
             string[] directories = GetDirectories(rootFilePath);
             List<Task<string[]>> moreFiles = new List<Task<string[]>>();
             foreach (string s in directories)
-                moreFiles.Add(GetAllFilesInDirectoryAsync(s));
+                moreFiles.Add(Task.Run(() => GetAllFilesInDirectoryAsync(s)));
             return moreFiles;
-        }
-
-        private static string[] GetArrayOfFilesWithPassword(string[] files)
-        {
-            string[] retruntFiles;
-            List<string> fileList = new List<string>();
-            foreach (string s in files)
-                if (FileContainsPassword(s)) fileList.Add(s);
-            retruntFiles = fileList.ToArray();
-            return retruntFiles;
         }
 
         private static string GetRootFilePathFormUser()
@@ -101,26 +114,14 @@ namespace PasswordFlagger
         private static string[] GetFiles(string rootFilePath)
         {
             string[] files = Directory.GetFiles(rootFilePath);
-            FileCount += files.Length;
+            Interlocked.Add(ref FileCount, files.Length);
             return files;
-        }
-
-        private static void RegistreNewTask()
-        {
-                TasksRunning++;
-                WriteStatus();
         }
 
         private static void WriteStatus()
         {
-            Console.WriteLine($"{TasksRunning}\t{TasksDone}");
-        }
-
-        private static void RegistreCompleteTask()
-        {
-                TasksRunning--;
-                TasksDone++;
-                WriteStatus();
+            Console.WriteLine($"Files = {FileCount}");
+            Console.WriteLine($"{(int)(((double)FilesProcessed/(double)FileCount)*100)}%");
         }
     }
 }
