@@ -10,11 +10,11 @@ namespace PasswordFlagger
 {
     class Program
     {
-        private static readonly object _lockObj = new object();
         public static int FilesProcessed = 0;
         public static int FileCount = 0;
         public static string[]  NoNoWords { get; set; }
         private static CancellationTokenSource cancleStatusDisplay = new CancellationTokenSource();
+
         static async Task Main(string[] args)
         {
             string rootFilePath = GetRootFilePathFormUser();
@@ -38,6 +38,7 @@ namespace PasswordFlagger
                     Interlocked.Increment(ref FilesProcessed);
                 }));
             Task.WaitAll(tasks.ToArray());
+
             flaggedFiles.Sort();
             return flaggedFiles.ToArray();
         }
@@ -51,18 +52,21 @@ namespace PasswordFlagger
         private static void ShowDisplay(CancellationToken cancellation)
         {
             Console.Clear();
+            Console.CursorVisible = false;
             while (!cancellation.IsCancellationRequested)
             {
                 Console.SetCursorPosition(0, 0);
                 WriteStatus();
-                Thread.Sleep(100);
+                Thread.Sleep(30);
             }
+            Console.Clear();
+            WriteStatus();
         }
 
         private static string[] GetNoNoWordsFromUser()
         {
             Console.WriteLine("Enter No No words seperated with \",\"");
-            return Console.ReadLine().Split(",").Select(x => x.Trim()).ToArray();
+            return Console.ReadLine().Split(",").Select(x => x.Trim()).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
         }
 
         private static void SaveFilesWIthPassword(string[] files)
