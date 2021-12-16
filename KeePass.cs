@@ -12,12 +12,24 @@ namespace PasswordFlagger
 {
     public class KeePass
     {
+        private KeePassFolder rootFolder;
         private static List<string> entryIdsList;
         private static object lockObj = new object();
 
         private static string bearer_token;
         private static int token_expires_in;
         private static DateTime tokenFetched_UTCtimestamp;
+        public KeePassFolder RootFolder
+        {
+            get
+            {
+                if (rootFolder == null)
+                    rootFolder = GetRootFolder();
+                return rootFolder;
+            }
+        }
+
+
         private static string baseUrl
         {
             get
@@ -29,7 +41,7 @@ namespace PasswordFlagger
             }
         }
 
-        private static string Bearer_token
+        public static string Bearer_token
         {
             get
             {
@@ -67,6 +79,36 @@ namespace PasswordFlagger
                 lock (lockObj)
                     tokenFetched_UTCtimestamp = value;
             }
+        }
+
+        private KeePassFolder GetRootFolder()
+        {
+            string foldersEndpoint = baseUrl + "/api/v5/rest/folders";
+
+            HttpWebRequest request = WebRequest.Create(foldersEndpoint) as HttpWebRequest;
+            request.Method = "GET";
+            request.ContentType = "application/json";
+            if (Bearer_token == null)
+                GetNewAuthToken();
+            request.Headers.Add("Authorization", Bearer_token);
+
+            KeePassFolder folder;
+            using (WebResponse response = request.GetResponse())
+            {
+                using (StreamReader streamReader = new StreamReader(response.GetResponseStream()))
+                {
+                    string jsonResponseText = streamReader.ReadToEnd();
+                    folder = JsonConvert.DeserializeObject<KeePassFolder>(jsonResponseText);
+                }
+            }
+
+            return folder;
+        }
+
+        internal string[] GetCredentialsArray()
+        {
+            string[] credentials = RootFolder.GetCredentialsRecursive().Result;
+            return credentials;
         }
 
         private static void GetNewAuthToken()

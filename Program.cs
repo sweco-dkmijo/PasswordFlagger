@@ -22,11 +22,17 @@ namespace PasswordFlagger
 
         static async Task Main(string[] args)
         {
+            KeePass keePass = new KeePass();
+
             string rootFilePath = string.IsNullOrEmpty(root) ? GetRootFilePathFormUser() : root;
 
-            GetNoNosFromKP();
+            StatusDisplay statusDisplay = new StatusDisplay(keePass.RootFolder);
+            Task status = statusDisplay.ShowDisplay();
 
-           if(NoNoWordsArray == null)
+            GetNoNosFromKP(keePass);
+
+            status.Wait();
+            if(NoNoWordsArray == null)
                 NoNoWordsArray = GetNoNoWordsFromUser();
 
             string[] files = await GetAllFilesInDirectoryAsync(rootFilePath);
@@ -39,9 +45,9 @@ namespace PasswordFlagger
             {
                 Console.WriteLine();
                 Console.WriteLine($"There are {filesWithNoNoNames.Length} files with no no words. Remove them? y/n");
-                string input = Console.ReadLine();
+                ConsoleKey input = Console.ReadKey().Key;
                 
-                if (!input.Contains("y", StringComparison.OrdinalIgnoreCase))
+                if (!input.Equals(ConsoleKey.Y))
                     return;
 
                 FileCount = filesWithNoNoNames.Length;
@@ -54,10 +60,10 @@ namespace PasswordFlagger
             }
         }
 
-        private static void GetNoNosFromKP()
+        private static void GetNoNosFromKP(KeePass keePass)
         {
             Console.WriteLine($"Fethcing no no words...");
-            NoNoWordsArray = KeePass.GetAllCredentials().ToArray();
+            NoNoWordsArray = keePass.GetCredentialsArray();
         }
 
         private static string[] AnalyseFilesForNoNoWords(string[] files)
