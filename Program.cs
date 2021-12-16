@@ -148,7 +148,7 @@ namespace PasswordFlagger
         private static bool FileContainsNoNoWord(string file)
         {
             string text = File.ReadAllText(file);
-            if (NoNoWordsArray.Any(x => text.Contains($"Password={x}"))) return true;
+            if (NoNoWordsArray.Any(x => text.Contains($"{x}"))) return true;
             return false;
         }
 
