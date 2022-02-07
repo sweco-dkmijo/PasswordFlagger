@@ -20,7 +20,7 @@ namespace PasswordFlagger
         public static string[] NoNoWordsArray { get; set; }
         private static CancellationTokenSource cancleStatusDisplay = new CancellationTokenSource();
 
-        static async Task Main(string[] args)
+        static void Main(string[] args)
         {
             KeePass keePass = new KeePass();
 
@@ -35,7 +35,7 @@ namespace PasswordFlagger
             if(NoNoWordsArray == null)
                 NoNoWordsArray = GetNoNoWordsFromUser();
 
-            string[] files = await GetAllFilesInDirectoryAsync(rootFilePath);
+            string[] files = GetAllFilesInDirectoryAsync(rootFilePath).Result;
             Task statusAnalyseDisplay = Task.Run(() => ShowDisplay(cancleStatusDisplay.Token, analysingMsg, new Tuple<int, int>(0, 0)));
             string[] filesWithNoNoNames = AnalyseFilesForNoNoWords(files);
             StopStatusDisplay(statusAnalyseDisplay);
@@ -113,7 +113,16 @@ namespace PasswordFlagger
 
         private static void WriteFilesWithNoNoWords(string[] files)
         {
-            Console.WriteLine(string.Join("\n", files));
+            foreach (string file in files)
+            {
+                foreach (string pass in NoNoWordsArray)
+                {
+                    string filetext = File.ReadAllText(file);
+                    if (filetext.Contains(pass))
+                        Console.Write($"{pass},");
+                }
+                Console.WriteLine("\t" + file);
+            }
         }
 
         private static async Task<string[]> GetAllFilesInDirectoryAsync(string rootFilePath)
